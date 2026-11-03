@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#17324d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="My Expenses">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Smart Expense Tracker</title>
+<style>
+:root{--navy:#17324d;--blue:#245f9b;--green:#198754;--red:#dc3545;--bg:#f0f4f8;--ink:#182532;--muted:#687784;--card:#fff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding-bottom:env(safe-area-inset-bottom)}
+header{background:var(--navy);color:white;padding:calc(18px + env(safe-area-inset-top)) 18px 18px;text-align:center}
+header h1{font-size:21px;margin:0 0 5px}header p{margin:0;color:#dceaf5;font-size:13px}
+main{max-width:850px;margin:auto;padding:14px}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:13px}
+.card,.panel{background:var(--card);border-radius:15px;padding:13px;box-shadow:0 2px 10px #17324d0d}
+.card{text-align:center;min-width:0}.card small{display:block;color:var(--muted);font-weight:700;font-size:10px;letter-spacing:.3px}.card strong{display:block;font-size:clamp(14px,4vw,20px);margin-top:8px;overflow-wrap:anywhere}
+.budget strong{color:var(--blue)}.spent strong{color:var(--red)}.remaining strong{color:var(--green)}
+.panel{margin-bottom:13px}.panel h2{font-size:16px;color:var(--navy);margin:0 0 11px}
+input,select,button{font:inherit}input,select{width:100%;border:1px solid #d5dee6;border-radius:10px;padding:12px;background:white;color:var(--ink);min-height:44px}
+.row{display:flex;gap:8px}.row>*{flex:1;min-width:0}
+button{border:0;border-radius:10px;padding:12px 14px;font-weight:700;cursor:pointer;min-height:44px}
+.primary{background:var(--navy);color:white}.green{background:var(--green);color:white}.danger{background:var(--red);color:white}.soft{background:#e7eef5;color:var(--navy)}
+.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.formgrid .wide{grid-column:1/-1}
+.actions{display:flex;flex-wrap:wrap;gap:8px}.actions button{flex:1}
+.list{display:grid;gap:8px}.item{display:flex;align-items:center;gap:10px;background:#f7f9fb;border:1px solid #e7edf2;border-radius:11px;padding:11px}
+.item .details{flex:1;min-width:0}.item b{display:block;font-size:14px;overflow-wrap:anywhere}.item small{color:var(--muted);font-size:12px;overflow-wrap:anywhere}.amount{font-weight:800;white-space:nowrap;color:var(--red);font-size:14px}
+.item button{min-height:36px;padding:7px 10px;background:#fdebed;color:#a51e2b}
+.empty{text-align:center;color:var(--muted);padding:22px 8px;font-size:14px}
+.note{font-size:12px;color:var(--muted);line-height:1.45;margin:9px 0 0}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#172b3b;color:white;padding:11px 16px;border-radius:22px;display:none;z-index:5;max-width:90%;font-size:13px}
+@media(max-width:420px){main{padding:10px}.cards{gap:6px}.card{padding:10px 5px}.formgrid{grid-template-columns:1fr}.formgrid .wide{grid-column:auto}.row{flex-direction:column}}
+</style>
+</head>
+<body>
+<header><h1>SMART EXPENSE TRACKER</h1><p>Your money, organised simply</p></header>
+<main>
+  <section class="cards">
+    <div class="card budget"><small>MONTHLY BUDGET</small><strong id="budgetTotal">₹0.00</strong></div>
+    <div class="card spent"><small>THIS MONTH SPENT</small><strong id="spentTotal">₹0.00</strong></div>
+    <div class="card remaining"><small>REMAINING</small><strong id="remainingTotal">₹0.00</strong></div>
+  </section>
+
+  <section class="panel">
+    <h2>Set monthly budget</h2>
+    <div class="row"><input id="budgetInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Enter budget in ₹"><button class="primary" id="setBudget">Set budget</button></div>
+  </section>
+
+  <section class="panel">
+    <h2>Add new expense</h2>
+    <div class="formgrid">
+      <input id="category" placeholder="Category (e.g. Food)" maxlength="40">
+      <input id="amount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Amount (₹)">
+      <input class="wide" id="note" placeholder="Note (optional)" maxlength="120">
+      <button class="green wide" id="addExpense">＋ ADD EXPENSE</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Transaction history</h2>
+    <div class="row" style="margin-bottom:10px">
+      <select id="filter"><option value="all">All transactions</option><option value="month">This month</option></select>
+      <select id="sort"><option value="new">Newest first</option><option value="old">Oldest first</option></select>
+    </div>
+    <div class="list" id="history"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Backup & device transfer</h2>
+    <div class="actions">
+      <button class="soft" id="exportData">Export backup</button>
+      <button class="soft" id="importData">Import backup</button>
+      <input id="fileInput" type="file" accept="application/json,.json" hidden>
+    </div>
+    <p class="note">Your data is saved on this device. To move it between iPhone and computer, export a backup on one device and import that file on the other. Import merges records and avoids replacing your existing expenses.</p>
+  </section>
+  <p class="note" style="text-align:center">Offline-first • Data stays on this device unless you export it.</p>
+</main>
+<div id="toast" role="status"></div>
+<script>
+const DB_NAME = "smart-expense-tracker";
+const DB_VERSION = 1;
+let db;
+
+function openDB(){
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open(DB_NAME,DB_VERSION);
+    req.onupgradeneeded=()=>{
+      const d=req.result;
+      if(!d.objectStoreNames.contains("settings")) d.createObjectStore("settings",{keyPath:"key"});
+      if(!d.objectStoreNames.contains("expenses")) d.createObjectStore("expenses",{keyPath:"id"});
+    };
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error);
+  });
+}
+function store(name,mode="readonly"){
+  return db.transaction(name,mode).objectStore(name);
+}
+function getAll(name){
+  return new Promise((resolve,reject)=>{
+    const r=store(name).getAll();r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);
+  });
+}
+function getSetting(key){
+  return new Promise((resolve,reject)=>{
+    const r=store("settings").get(key);r.onsuccess=()=>resolve(r.result?.value);r.onerror=()=>reject(r.error);
+  });
+}
+function put(name,value){
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(name,"readwrite");tx.objectStore(name).put(value);
+    tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);
+  });
+}
+function removeExpense(id){
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction("expenses","readwrite");tx.objectStore("expenses").delete(id);
+    tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
+  });
+}
+const money=n=>"₹"+Number(n||0).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
+const monthNow=()=>new Date().toISOString().slice(0,7);
+function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.style.display="block";setTimeout(()=>t.style.display="none",2400)}
+async function refresh(){
+  const [expenses,budget]=await Promise.all([getAll("expenses"),getSetting("budget")]);
+  const current=monthNow();
+  const spent=expenses.filter(x=>x.date?.slice(0,7)===current).reduce((s,x)=>s+Number(x.amount),0);
+  document.getElementById("budgetTotal").textContent=money(budget||0);
+  document.getElementById("spentTotal").textContent=money(spent);
+  document.getElementById("remainingTotal").textContent=money((Number(budget)||0)-spent);
+  const filter=document.getElementById("filter").value;
+  const sort=document.getElementById("sort").value;
+  let shown=expenses.filter(x=>filter==="all"||x.date?.slice(0,7)===current);
+  shown.sort((a,b)=>sort==="new"?(b.date||"").localeCompare(a.date||""):(a.date||"").localeCompare(b.date||""));
+  const list=document.getElementById("history");list.replaceChildren();
+  if(!shown.length){const e=document.createElement("div");e.className="empty";e.textContent="No expenses yet. Add your first expense above.";list.append(e);return;}
+  for(const x of shown){
+    const item=document.createElement("div");item.className="item";
+    const details=document.createElement("div");details.className="details";
+    const title=document.createElement("b");title.textContent=x.category||"Expense";
+    const sub=document.createElement("small");sub.textContent=(x.date||"")+(x.note?" • "+x.note:"");
+    details.append(title,sub);
+    const amount=document.createElement("span");amount.className="amount";amount.textContent=money(x.amount);
+    const del=document.createElement("button");del.textContent="Delete";del.setAttribute("aria-label","Delete "+(x.category||"expense"));
+    del.addEventListener("click",async()=>{if(confirm("Delete this expense?")){await removeExpense(x.id);await refresh();toast("Expense deleted");}});
+    item.append(details,amount,del);list.append(item);
+  }
+}
+document.getElementById("setBudget").addEventListener("click",async()=>{
+  const raw=document.getElementById("budgetInput").value;const n=Number(raw);
+  if(raw.trim()===""||!Number.isFinite(n)||n<0){toast("Enter a valid budget of ₹0 or more");return;}
+  await put("settings",{key:"budget",value:n});document.getElementById("budgetInput").value="";
+  await refresh();toast("Monthly budget saved");
+});
+document.getElementById("addExpense").addEventListener("click",async()=>{
+  const category=document.getElementById("category").value.trim();
+  const raw=document.getElementById("amount").value;
+  const amount=Number(raw);
+  if(!category||raw.trim()===""||!Number.isFinite(amount)||amount<=0){toast("Enter a category and an amount above ₹0");return;}
+  const expense={id:crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random(),date:new Date().toISOString().slice(0,10),category,amount,note:document.getElementById("note").value.trim()};
+  await put("expenses",expense);
+  ["category","amount","note"].forEach(id=>document.getElementById(id).value="");
+  await refresh();toast("Expense added");
+});
+["filter","sort"].forEach(id=>document.getElementById(id).addEventListener("change",refresh));
+
+document.getElementById("exportData").addEventListener("click",async()=>{
+  const payload={app:"Smart Expense Tracker",version:1,exportedAt:new Date().toISOString(),budget:await getSetting("budget")||0,expenses:await getAll("expenses")};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);const a=document.createElement("a");
+  a.href=url;a.download="expense-tracker-backup-"+new Date().toISOString().slice(0,10)+".json";a.click();
+  URL.revokeObjectURL(url);toast("Backup exported");
+});
+document.getElementById("importData").addEventListener("click",()=>document.getElementById("fileInput").click());
+document.getElementById("fileInput").addEventListener("change",async e=>{
+  const file=e.target.files[0];if(!file)return;
+  try{
+    const payload=JSON.parse(await file.text());
+    if(!payload||!Array.isArray(payload.expenses)||typeof payload.budget!=="number")throw new Error("Invalid backup");
+    const current=await getAll("expenses");const ids=new Set(current.map(x=>String(x.id)));
+    let added=0;
+    for(const x of payload.expenses){
+      if(!x||x.id==null||!x.date||!x.category||!Number.isFinite(Number(x.amount))||Number(x.amount)<=0)continue;
+      if(!ids.has(String(x.id))){await put("expenses",{...x,id:String(x.id),amount:Number(x.amount)});ids.add(String(x.id));added++;}
+    }
+    const localBudget=await getSetting("budget");
+    if(localBudget===undefined||confirm("Use the budget from this backup ("+money(payload.budget)+")?"))await put("settings",{key:"budget",value:payload.budget});
+    await refresh();toast("Imported "+added+" new expense(s)");
+  }catch(err){alert("That file is not a valid Expense Tracker backup.");}
+  e.target.value="";
+});
+(async()=>{
+  try{db=await openDB();await refresh();}
+  catch(e){alert("This browser could not open local storage. Try the latest Safari or Chrome.");}
+  if("serviceWorker" in navigator && location.protocol.startsWith("http")){
+    navigator.serviceWorker.register("./sw.js").catch(()=>{});
+  }
+})();
+</script>
+</body>
+</html>
